@@ -17,4 +17,4 @@ COPY . .
 RUN cargo install --path .
 
 # The binary is now in ~/.cargo/bin, adjust the path if necessary
-CMD ["/usr/local/cargo/bin/myapp"]
+CMD ["/usr/local/cargo/bin/rinha-backend"]

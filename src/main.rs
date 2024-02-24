@@ -99,7 +99,6 @@ async fn transaction(
         }
     }
 
-    // Uptade account balance
     let new_balance: i64 = match transaction.type_ {
         TransactionType::Credit => {
             accounts.get_mut(&account_id).unwrap().balance + transaction.value
