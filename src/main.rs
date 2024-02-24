@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -12,6 +12,26 @@ use tokio::sync::Mutex;
 
 use std::collections::HashMap;
 use time::OffsetDateTime;
+
+#[derive(Debug)]
+enum APIErrors {
+    AccountNotFound,
+    TransactionLimitExceeded,
+}
+
+impl IntoResponse for APIErrors {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            APIErrors::AccountNotFound => (StatusCode::NOT_FOUND, "Account not found"),
+            APIErrors::TransactionLimitExceeded => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "Transaction limit exceeded",
+            ),
+        };
+
+        (status, message).into_response()
+    }
+}
 
 #[derive(Clone)]
 struct ClientAccount {
@@ -84,47 +104,36 @@ async fn main() {
 async fn transaction(
     Path(account_id): Path<i32>,
     State(accounts): State<Arc<Mutex<HashMap<i32, ClientAccount>>>>,
-    Json(transaction): Json<TransactionRequest>,
-) -> impl IntoResponse {
+    Json(transaction_request): Json<TransactionRequest>,
+) -> Result<Json<impl serde::Serialize>, APIErrors> {
     let mut accounts = accounts.lock().await;
+    let account = accounts
+        .get_mut(&account_id)
+        .ok_or(APIErrors::AccountNotFound)?;
 
-    if transaction.value > accounts.get_mut(&account_id).unwrap().limit {
-        return Err(StatusCode::UNPROCESSABLE_ENTITY);
-    }
-
-    if transaction.type_ == TransactionType::Debit {
-        let tmp_result: i64 = accounts.get_mut(&account_id).unwrap().balance - transaction.value;
-        if tmp_result < accounts.get_mut(&account_id).unwrap().limit {
-            return Err(StatusCode::UNPROCESSABLE_ENTITY);
-        }
-    }
-
-    let new_balance: i64 = match transaction.type_ {
-        TransactionType::Credit => {
-            accounts.get_mut(&account_id).unwrap().balance + transaction.value
-        }
-        TransactionType::Debit => {
-            accounts.get_mut(&account_id).unwrap().balance - transaction.value
-        }
+    let adjustment = match transaction_request.type_ {
+        TransactionType::Credit => transaction_request.value,
+        TransactionType::Debit => -transaction_request.value,
     };
-    
-    accounts.get_mut(&account_id).unwrap().balance = new_balance;
 
-    match accounts.get_mut(&account_id) {
-        Some(account) => {
-            account.transactions.push(Transaction {
-                value: transaction.value,
-                type_: transaction.type_,
-                description: transaction.description,
-                date: OffsetDateTime::now_utc(),
-            });
-            Ok(Json(json!({
-                "limite" : account.limit,
-                "saldo" : account.balance
-            })))
-        }
-        None => Err(StatusCode::NOT_FOUND),
+    let balance_after_transaction = account.balance + adjustment;
+
+    if balance_after_transaction < -account.limit {
+        return Err(APIErrors::TransactionLimitExceeded);
     }
+
+    account.balance += adjustment;
+    account.transactions.push(Transaction {
+        value: transaction_request.value,
+        type_: transaction_request.type_,
+        description: transaction_request.description.clone(),
+        date: OffsetDateTime::now_utc(),
+    });
+
+    Ok(Json(json!({
+        "balance": account.balance,
+        "limit": account.limit,
+    })))
 }
 
 async fn extract(

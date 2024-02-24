@@ -1,0 +1,7 @@
+POST http://localhost:3000/clientes/3/transacoes
+content-type: application/json
+{
+    "valor": 100,
+    "tipo": "d"
+    "descricao": "Debito de 100 reais"
+}
