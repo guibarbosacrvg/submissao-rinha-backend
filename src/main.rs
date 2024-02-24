@@ -40,6 +40,32 @@ struct ClientAccount {
     transactions: Vec<Transaction>,
 }
 
+// Buffer with size 10 for Vec<Transaction>
+struct AuxBuffer(Vec<Transaction>);
+
+impl AuxBuffer {
+    fn new() -> Self {
+        Self(Vec::with_capacity(10))
+    }
+
+    fn push(&mut self, transaction: Transaction) {
+        if self.0.len() == 10 {
+            self.0.remove(0);
+        }
+        self.0.push(transaction);
+    }
+}
+
+impl From<Vec<Transaction>> for AuxBuffer {
+    fn from(transactions: Vec<Transaction>) -> Self {
+        let mut buffer = Self::new();
+        for transaction in transactions {
+            buffer.push(transaction);
+        }
+        buffer
+    }
+}
+
 impl ClientAccount {
     pub fn default_with_limit(limit: i64) -> Self {
         Self {

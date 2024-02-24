@@ -4,20 +4,19 @@ services:
   api01: &api
     build:
       context: .
-    hostname: api01
+    hostname: api1
     deploy:
       resources:
         limits:
-          cpus: "0.6"
-          memory: "20MB"
+          cpus: "0.25"
+          memory: "100MB"
 
   api02:
-    # Essa sintaxe reusa o que foi declarado em 'api01'.
-    <<: *api 
+    <<: *api
     hostname: api02
     ports:
-      - "3000:8080"
- 
+      - "3000:3000"
+
   nginx:
     image: nginx:latest
     volumes:
@@ -26,15 +25,13 @@ services:
       - api01
       - api02
     ports:
-        # Obrigatório expor/usar a porta 9999 no load balancer!
-      - "9999:9999" 
+      - "9999:9999"
     deploy:
       resources:
         limits:
-          cpus: "0.17"
-          memory: "10MB"
+          cpus: "1"
+          memory: "100MB"
 
- 
 networks:
   default:
     driver: bridge
