@@ -17,6 +17,7 @@ use time::OffsetDateTime;
 enum APIErrors {
     AccountNotFound,
     TransactionLimitExceeded,
+    DescriptionCharacterLimitExceeded,
 }
 
 impl IntoResponse for APIErrors {
@@ -26,6 +27,10 @@ impl IntoResponse for APIErrors {
             APIErrors::TransactionLimitExceeded => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Transaction limit exceeded",
+            ),
+            APIErrors::DescriptionCharacterLimitExceeded => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "Description character limit exceeded",
             ),
         };
 
@@ -40,7 +45,6 @@ struct ClientAccount {
     transactions: Vec<Transaction>,
 }
 
-// Buffer with size 10 for Vec<Transaction>
 struct AuxBuffer(Vec<Transaction>);
 
 impl AuxBuffer {
@@ -148,6 +152,10 @@ async fn transaction(
         return Err(APIErrors::TransactionLimitExceeded);
     }
 
+    if transaction_request.description.len() > 10 || transaction_request.description.is_empty() {
+        return Err(APIErrors::DescriptionCharacterLimitExceeded);
+    }
+
     account.balance += adjustment;
     account.transactions.push(Transaction {
         value: transaction_request.value,
@@ -157,8 +165,8 @@ async fn transaction(
     });
 
     Ok(Json(json!({
-        "balance": account.balance,
-        "limit": account.limit,
+        "saldo": account.balance,
+        "limite": account.limit,
     })))
 }
 
